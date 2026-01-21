@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>像素字符磁力特效</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1e1e1e; /* 背景色 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+<script>
+    let sourceImage;
+    let pixelChars = []; 
+
+    // --- 🔧 配置区域 ---
+    // ⚠️ 请确保这个图片文件和 html 文件在同一个文件夹里！
+    let imageFileName = 'pixel_art.png'; 
+    
+    let gridSize = 15;                   // 网格大小
+    let targetString = "cyber chan";     // 循环文字
+
+    // --- 动力学参数 ---
+    let influenceRange = gridSize * 6;   // 影响范围
+    let moveSpeed = 0.08;                // 移动/归位速度 (越小越慢)
+    let maxPullStrength = 0.7;           // 最大吸引力
+    let maxRotation = Math.PI / 12;      // 最大旋转角度
+    // --------------------
+
+    function preload() {
+        sourceImage = loadImage(imageFileName);
+    }
+
+    function setup() {
+        if (!sourceImage) {
+            console.error("图片加载失败，请检查文件名或服务器环境");
+            return;
+        }
+        
+        sourceImage.loadPixels();
+        
+        // 增加画布边距，防止字飞出去
+        let padding = 50;
+        let canvasWidth = sourceImage.width * gridSize + padding * 2;
+        let canvasHeight = sourceImage.height * gridSize + padding * 2;
+        
+        // 创建画布并居中
+        let cnv = createCanvas(canvasWidth, canvasHeight);
+        
+        textSize(gridSize * 0.9);
+        textAlign(CENTER, CENTER);
+        textStyle(BOLD);
+        noStroke();
+        angleMode(RADIANS); 
+
+        let charIndex = 0;
+        let offsetX = padding;
+        let offsetY = padding;
+
+        for (let y = 0; y < sourceImage.height; y++) {
+            for (let x = 0; x < sourceImage.width; x++) {
+                let c = sourceImage.get(x, y);
+                // 这里假设是PNG，判断透明度
+                // 如果是JPG，请改用: if (c[0] < 250 || c[1] < 250 || c[2] < 250)
+                if (c[3] > 10) {
+                    let posX = x * gridSize + gridSize / 2 + offsetX;
+                    let posY = y * gridSize + gridSize / 2 + offsetY;
+                    let charToShow = targetString.charAt(charIndex % targetString.length);
+                    
+                    pixelChars.push(new PixelChar(posX, posY, c, charToShow));
+                    charIndex++;
+                }
+            }
+        }
+    }
+
+    function draw() {
+        background(30);
+        for (let p of pixelChars) {
+            p.update();
+            p.display();
+        }
+    }
+
+    // --- 粒子类 ---
+    class PixelChar {
+        constructor(x, y, col, char) {
+            this.origX = x; 
+            this.origY = y;
+            this.curX = x;
+            this.curY = y;
+            this.angle = 0; 
+            this.rotDirection = Math.random() > 0.5 ? 1 : -1;
+            this.origColor = col;
+            this.char = char;
+            
+            let r = red(col) + 120;
+            let g = green(col) + 120;
+            let b = blue(col) + 120;
+            this.highlightColor = color(r, g, b); 
+        }
+
+        update() {
+            let d = dist(mouseX, mouseY, this.origX, this.origY);
+            
+            let targetX = this.origX;
+            let targetY = this.origY;
+            let targetAngle = 0;
+
+            if (d < influenceRange) {
+                let forceFactor = map(d, 0, influenceRange, 1, 0);
+                forceFactor = pow(forceFactor, 1.5); 
+
+                let vX = mouseX - this.origX;
+                let vY = mouseY - this.origY;
+                
+                targetX = this.origX + vX * forceFactor * maxPullStrength;
+                targetY = this.origY + vY * forceFactor * maxPullStrength;
+                targetAngle = maxRotation * forceFactor * this.rotDirection;
+            }
+
+            this.curX = lerp(this.curX, targetX, moveSpeed);
+            this.curY = lerp(this.curY, targetY, moveSpeed);
+            this.angle = lerp(this.angle, targetAngle, moveSpeed);
+        }
+
+        display() {
+            let d = dist(mouseX, mouseY, this.curX, this.curY);
+
+            if (d < influenceRange / 2.5) {
+                fill(this.highlightColor);
+                let sizeScale = map(constrain(d, 0, influenceRange/2), 0, influenceRange/2.5, 1.3, 1.0);
+                textSize(gridSize * sizeScale);
+            } else {
+                fill(this.origColor);
+                textSize(gridSize * 0.9);
+            }
+
+            push();
+            translate(this.curX, this.curY);
+            rotate(this.angle);
+            text(this.char, 0, 0);
+            pop();
+        }
+    }
+</script>
+
+</body>
+</html>
